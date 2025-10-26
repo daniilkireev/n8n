@@ -1,0 +1,37 @@
+# OAuth tokens
+token.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+.venv/
+venv/
+
+# Logs
+sync_*.log
+*.log
+
+# CSV data files
+*.csv
+!example.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials (keep these in separate directory)
+client_secret_*.json
+
+# History
+.history/
