@@ -1,0 +1,369 @@
+{
+  "name": "vacancy.message_text.get",
+  "nodes": [
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1552,
+        0
+      ],
+      "id": "b5602470-0845-40ab-b87c-bf24d1dd1eba",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook').item.json.body.messenger }}",
+                    "rightValue": "=Whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "edff36b7-52aa-42e0-8a04-aba1445d3902"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        656,
+        0
+      ],
+      "id": "ee8f5c73-0018-40b0-9851-4163768ffaab",
+      "name": "Messenger type?"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I",
+          "mode": "list",
+          "cachedResultName": "Объявления",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1337738460,
+          "mode": "list",
+          "cachedResultName": "Avito",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I/edit#gid=1337738460"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "AvitoID",
+              "lookupValue": "={{ $json.body.avito_order_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        432,
+        0
+      ],
+      "id": "ffcb7c52-c6a7-4416-84ef-65bba054eb75",
+      "name": "Get Project and Speciality for avito_order_id",
+      "credentials": {
+        "googleApi": {
+          "id": "4rPLRzUxumedlI2t",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Настройки\nconst MSG_PREFIX = 'Сообщение - WA - Приглашение - ';\nconst HEAD_FIELDS = [\n  { source: 'row_number', target: 'row_number' },\n  { source: 'Проект', target: 'project' },\n  { source: 'Тип объекта', target: 'project_type' },\n  { source: 'Специализация', target: 'speciality' },\n];\n\n// Синонимы префиксов -> канонический type\nconst PREFIX_TO_TYPE = {\n  // картинки\n  image: 'img', photo: 'img', picture: 'img', img: 'img', attachment_image: 'img',\n  // видео\n  video: 'video', attachment_video: 'video',\n  // аудио\n  audio: 'audio', voice: 'audio', attachment_audio: 'audio',\n  // документы\n  document: 'doc', doc: 'doc', pdf: 'doc', attachment_document: 'doc',\n  // файлы\n  file: 'file', attachment_file: 'file'\n};\n\nconst getNum = (s) => {\n  const m = s.match(/(\\d+)\\s*$/);\n  return m ? Number(m[1]) : Number.POSITIVE_INFINITY;\n};\n\nfunction parseMessage(raw) {\n  const text = String(raw ?? '');\n  if (!text.trim()) {\n    // Пустое сообщение — считаем текстовым с пустым текстом\n    return { type: 'text', text: '' };\n  }\n\n  const [firstLine, ...rest] = text.split(/\\r?\\n/);\n  const m = firstLine.trim().match(/^([a-z_]+)\\s*=\\s*(\\S+)$/i);\n  if (!m) {\n    // Нет префикса — обычное текстовое\n    return { type: 'text', text: text.trim() };\n  }\n\n  const key = m[1].toLowerCase();\n  const url = m[2];\n  const type = PREFIX_TO_TYPE[key];\n\n  if (!type) {\n    // Неизвестный префикс — трактуем как обычный текст\n    return { type: 'text', text: text.trim() };\n  }\n\n  const caption = rest.join('\\n').trim();\n  const msg = { type, text: caption };\n  if (url) msg.url = url;\n  return msg;\n}\n\nreturn $input.all().map(({ json }) => {\n  // 1) Шапка\n  const head = Object.fromEntries(\n    HEAD_FIELDS.map(({ source, target }) => [target, json[source] ?? ''])\n  );\n\n  // 2) Собираем сообщения и переименовываем ключи\n  const messages = Object.fromEntries(\n    Object.entries(json)\n      .filter(([k]) => k.includes(MSG_PREFIX))              // берём все, включая пустые\n      .sort(([a], [b]) => getNum(a) - getNum(b))           // по номеру\n      .map(([k, v]) => {\n        const n = (k.match(/(\\d+)\\s*$/) || [,'0'])[1];\n        const newKey = `wa_message_welcome_${n}`;\n        return [newKey, parseMessage(v)];\n      })\n  );\n\n  // 3) Итог\n  return {\n    json: {\n      result_data: {\n        ...head,\n        messages\n      }\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        0
+      ],
+      "id": "e468b04d-d1ab-4a8c-a022-3d048c92e71d",
+      "name": "Get Header and WA messages"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I",
+          "mode": "list",
+          "cachedResultName": "Объявления",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 911584481,
+          "mode": "list",
+          "cachedResultName": "Вакансии",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I/edit#gid=911584481"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Проект",
+              "lookupValue": "={{ $('Get Project and Speciality for avito_order_id').item.json['Проект'] }}"
+            },
+            {
+              "lookupColumn": "Специализация",
+              "lookupValue": "={{ $('Get Project and Speciality for avito_order_id').item.json['Специализация'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        0
+      ],
+      "id": "47fc7f37-71e5-4ee7-89c2-0bd437fc11ec",
+      "name": "Get All Messages",
+      "credentials": {
+        "googleApi": {
+          "id": "4rPLRzUxumedlI2t",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "37ddba7a-e510-4af9-9131-04870d1063de",
+              "name": "webhookUrl",
+              "value": "={{ $('Webhook').item.json.webhookUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "21732e9f-ebc6-4085-b18c-d994d6a198db",
+              "name": "executionMode",
+              "value": "={{ $('Webhook').item.json.executionMode }}",
+              "type": "string"
+            },
+            {
+              "id": "98a6063e-4c16-408d-8edd-7a81ced09561",
+              "name": "execution_datetime",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "b2a542f2-4958-4dc6-89e0-e622672eccc0",
+              "name": "execution_context",
+              "value": "={{ $execution }}",
+              "type": "object"
+            },
+            {
+              "id": "8929f316-9ed8-4a9c-94e2-c8ee041a20db",
+              "name": "workflow_context",
+              "value": "={{ $workflow }}",
+              "type": "object"
+            },
+            {
+              "id": "e583917a-955e-4a8c-8762-3a3037412371",
+              "name": "input_data",
+              "value": "={{ $('Webhook').item.json.body }}",
+              "type": "object"
+            },
+            {
+              "id": "cef2bb3b-8ad8-4a5d-8f2c-8e7eca8bb5fa",
+              "name": "result_data",
+              "value": "={{ $json.result_data }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1328,
+        0
+      ],
+      "id": "d6fdfaeb-2d7b-41d2-b3a2-c61ab400d20c",
+      "name": "Construct Reply Data"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/vacancy/message_text/get",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "9036b084-749f-4d7d-a7b0-91c56f41a760",
+      "name": "Webhook",
+      "webhookId": "26545a2e-7619-40f0-a632-e4faa52b0eef",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ilYOM2GRapefQZlh",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.autsorsim.ru",
+            "x-real-ip": "212.46.5.133",
+            "x-forwarded-for": "212.46.5.133",
+            "x-forwarded-proto": "https",
+            "connection": "close",
+            "content-length": "605",
+            "accept": "application/json,text/html,application/xhtml+xml,application/xml,text/*;q=0.9, image/*;q=0.8, */*;q=0.7",
+            "content-type": "application/json",
+            "x-api-key": "N8N_X_API_TOKEN_22DEE204206BEDE8",
+            "user-agent": "axios/1.12.0",
+            "accept-encoding": "gzip, compress, deflate, br"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "method": "vacancy.message_text.get",
+            "client_id": "831472440",
+            "full_name": "Михайлов Тарас Степанович",
+            "phone": "79801305613",
+            "order_id": "831472440-580914982",
+            "messenger": "Whatsapp",
+            "platform_id": "u2i-aMmVNQSRyR7y6Tu6FYpfFw",
+            "avito_order_id": "7738426189",
+            "avito_order_price": "40005500",
+            "avito_order_title": "Разнорабочий на склад сантехники - ежедневно",
+            "avito_order_url": "avito.ru/7738426189",
+            "avito_profile": "https://avito.ru/user/0bed43e47e98cfaa2045f43865574557/profile?iid=7738426189&page_from=from_item_messenger&src=messenger&id=7738426189"
+          },
+          "webhookUrl": "https://n8n.autsorsim.ru/webhook/vacancy/message_text/get",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Messenger type?": {
+      "main": [
+        [
+          {
+            "node": "Get All Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project and Speciality for avito_order_id": {
+      "main": [
+        [
+          {
+            "node": "Messenger type?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Header and WA messages": {
+      "main": [
+        [
+          {
+            "node": "Construct Reply Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Messages": {
+      "main": [
+        [
+          {
+            "node": "Get Header and WA messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construct Reply Data": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Project and Speciality for avito_order_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 300,
+    "availableInMCP": false
+  },
+  "versionId": "7686e7e3-424d-4873-a814-6d55fd57fcc9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe533e7b5b478c006fd0604461e26e5c3e4d170140f009e17eadbd88e693907b"
+  },
+  "id": "ycJ8ZsUUu2deZibV",
+  "tags": []
+}
