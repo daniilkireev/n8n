@@ -25,6 +25,16 @@ services:
     image: docker.n8n.io/n8nio/n8n
     restart: always
     environment:
+      - N8N_PROTOCOL=http
+      - N8N_SECURE_COOKIE=false
+      - N8N_HOST=n8n.autsorsim.ru
+      # - N8N_PORT=443 <- так перестает быть локально доступным
+      - WEBHOOK_URL=https://n8n.autsorsim.ru/
+      # Нижеследующие опции просто рекомендации:
+      - N8N_TRUST_PROXY=true
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_RUNNERS_ENABLED=true
+      # настройки DB
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
@@ -40,3 +50,24 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  n8n_tunnel:
+    build: ./ssh-tunnel
+    restart: always
+    depends_on:
+      - n8n
+    # Впишите UID:GID пользователя n8n_tunnel с домашнего сервера, например "1002:1002"
+    # user: "1001:1001"
+    volumes:
+      - ./ssh-n8n-tunnel:/ssh:ro
+    environment:
+      - AUTOSSH_GATETIME=0
+    command: >
+      -M 0 -N -p 44444
+      -o ExitOnForwardFailure=yes
+      -o ServerAliveInterval=15
+      -o ServerAliveCountMax=3
+      -o StrictHostKeyChecking=accept-new
+      -i /ssh/id_ed25519
+      -R 127.0.0.1:15678:n8n:5678
+      n8n_tunnel@144.31.193.1

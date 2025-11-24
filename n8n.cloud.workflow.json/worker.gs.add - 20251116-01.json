@@ -1,0 +1,411 @@
+{
+  "name": "worker.gs.add",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "worker/gs/add",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryData": false,
+          "responseContentType": "application/json"
+        },
+        "onError": "continueRegularOutput"
+      },
+      "id": "0972fa8c-4bd1-45d9-9bb5-43e1f41a9b1c",
+      "name": "Webhook - SaleBot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        200,
+        0
+      ],
+      "webhookId": "6541b5a5-15c4-4e14-b14e-706f0d7e24fb"
+    },
+    {
+      "parameters": {
+        "content": "### Template baseline\nAdapted from template **Automatic Lead Export from Fluentform to Google Sheets** by **Khairul Muhtadin** (@khmuhtadin).",
+        "width": 400,
+        "color": 2
+      },
+      "id": "d9f1b8a4-4436-4b42-9d78-3d2a828ab4e1",
+      "name": "Sticky - Template Attribution",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "mode": "runOnceForEachItem",
+        "jsCode": "const monthNames = {\n  1: 'янв', 2: 'фев', 3: 'мар', 4: 'апр', 5: 'май', 6: 'июнь',\n  7: 'июль', 8: 'авг', 9: 'сен', 10: 'окт', 11: 'нояб', 12: 'дек'\n};\n\nconst formatPhone = (input) => {\n  if (!input) return '';\n  const digits = String(input).replace(/\\D/g, '');\n  if (!digits) return '';\n  if (digits.length === 11 && digits.startsWith('7')) {\n    return `+${digits}`;\n  }\n  return digits.startsWith('+') ? digits : `+${digits}`;\n};\n\nreturn $input.all().map(({ json }) => {\n  const payload = json.body ?? json;\n\n  if (!payload || typeof payload !== 'object') {\n    throw new Error('Incoming SaleBot payload is missing.');\n  }\n\n  const labels = payload.labels ?? {};\n  const labelValues = Object.values(labels)\n    .map((value) => String(value ?? '').trim())\n    .filter((value) => value.length > 0);\n\n  const tags = labelValues.join(', ');\n\n  const projectNames = labelValues\n    .filter((value) => /^1:\\s*/.test(value))\n    .map((value) => value.replace(/^1:\\s*/, '').trim())\n    .filter(Boolean);\n\n  const now = new Date();\n  const monthCode = monthNames[now.getMonth() + 1] ?? 'янв';\n  const sheetTabName = `${monthCode}_${String(now.getFullYear()).slice(-2)}`;\n\n  const normalizedRow = {\n    'ФИО': (payload.full_name ?? '').trim(),\n    'Телефон / карта': formatPhone(payload.phone),\n    'client_id / comments': payload.client_id ?? '',\n    'tags': tags\n  };\n\n  return {\n    json: {\n      saleBot: payload,\n      normalizedRow,\n      tags,\n      projectNames,\n      sheetTabName\n    }\n  };\n});"
+      },
+      "id": "7d6b4270-3956-4dfe-aba5-ff3b8e5e9a96",
+      "name": "Normalize SaleBot Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I",
+          "mode": "list",
+          "cachedResultName": "Объявления",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I/edit?usp=drivesdk"
+        },
+        "sheetName": "Справочники",
+        "range": "A:K",
+        "options": {}
+      },
+      "id": "d38e84a4-7c23-4f2f-8d1d-289a5f5c51cb",
+      "name": "Read Directory Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        640,
+        0
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "4rPLRzUxumedlI2t",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const rows = items.map((item) => item.json).filter((row) => Object.keys(row).length);\nconst directoryMap = {};\n\nfor (const row of rows) {\n  const projectName = String(row['Проекты'] ?? '').trim();\n  const sheetId = String(row['Табель'] ?? '').trim();\n  if (!projectName || !sheetId) continue;\n  directoryMap[projectName] = sheetId;\n}\n\nreturn [\n  {\n    json: {\n      directoryMap\n    }\n  }\n];"
+      },
+      "id": "d0fa2c41-7d41-46cd-a61f-14349bffd6a4",
+      "name": "Directory Map",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I",
+          "mode": "list",
+          "cachedResultName": "Объявления",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1337738460,
+          "mode": "list",
+          "cachedResultName": "Avito",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I/edit#gid=1337738460"
+        },
+        "range": "A:F",
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "AvitoID",
+              "lookupValue": "={{ $node[\"Normalize SaleBot Body\"].json.saleBot.avito_order_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "84258c86-6c60-4c0a-85d0-b5b542206b19",
+      "name": "Lookup Avito Entry",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1080,
+        0
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "4rPLRzUxumedlI2t",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const normalized = $('Normalize SaleBot Body').item.json;\nconst directoryMap = $('Directory Map').item.json.directoryMap ?? {};\nconst avitoRows = items.map((item) => item.json).filter((row) => Object.keys(row).length);\n\nconst explicitProjects = normalized.projectNames ?? [];\nconst fallbackProjects = [];\n\nif (!explicitProjects.length && avitoRows.length) {\n  const avitoProject = String(avitoRows[0]['Проект'] ?? '').trim();\n  if (avitoProject) fallbackProjects.push(avitoProject);\n}\n\nconst uniqueProjects = [...new Set([...explicitProjects, ...fallbackProjects])].filter(Boolean);\n\nconst targets = uniqueProjects\n  .map((projectName) => {\n    const documentId = directoryMap[projectName];\n    return {\n      projectName,\n      documentId\n    };\n  })\n  .filter((target) => Boolean(target.documentId));\n\nif (!targets.length) {\n  throw new Error('Не удалось найти ни одного проекта в листе \"Справочники\".');\n}\n\nreturn targets.map((target) => ({\n  json: {\n    ...target,\n    sheetTabName: normalized.sheetTabName,\n    normalizedRow: normalized.normalizedRow,\n    tags: normalized.tags,\n    avitoOrderId: normalized.saleBot.avito_order_id,\n    clientId: normalized.saleBot.client_id,\n    projectSource: explicitProjects.length ? 'labels' : 'avito'\n  }\n}));"
+      },
+      "id": "fb42c3cf-8b43-4f4a-b88b-1b8590f6146e",
+      "name": "Build Targets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $json.documentId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $json.sheetTabName }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "client_id / comments"
+          ],
+          "schema": [
+            {
+              "id": "ФИО",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "ФИО",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Телефон / карта",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Телефон / карта",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_id / comments",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "client_id / comments",
+              "defaultMatch": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tags",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "tags",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "value": {
+            "ФИО": "={{ $json.normalizedRow['ФИО'] }}",
+            "Телефон / карта": "={{ $json.normalizedRow['Телефон / карта'] }}",
+            "client_id / comments": "={{ $json.normalizedRow['client_id / comments'] }}",
+            "tags": "={{ $json.normalizedRow['tags'] }}"
+          },
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "valueInputMode": "RAW"
+        }
+      },
+      "id": "0bc690bc-0d11-47ab-9c2e-815c0a7ff2bf",
+      "name": "Upsert Performer Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1540,
+        0
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "4rPLRzUxumedlI2t",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const targetItems = $items('Build Targets');\nconst summaries = targetItems.map((item) => ({\n  project: item.json.projectName,\n  sheetId: item.json.documentId,\n  sheetTab: item.json.sheetTabName,\n  source: item.json.projectSource ?? 'labels'\n}));\n\nreturn [\n  {\n    json: {\n      message: `Processed ${summaries.length} project(s)` ,\n      projects: summaries\n    }\n  }\n];"
+      },
+      "id": "7fe9bfb0-7a52-4d42-857d-530bc38264c1",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "f5f4b523-6ddf-449f-aa5b-13e1cbb0255e",
+      "name": "Respond to SaleBot",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1980,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - SaleBot": {
+      "main": [
+        [
+          {
+            "node": "Normalize SaleBot Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize SaleBot Body": {
+      "main": [
+        [
+          {
+            "node": "Read Directory Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Directory Sheet": {
+      "main": [
+        [
+          {
+            "node": "Directory Map",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Directory Map": {
+      "main": [
+        [
+          {
+            "node": "Lookup Avito Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Avito Entry": {
+      "main": [
+        [
+          {
+            "node": "Build Targets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Targets": {
+      "main": [
+        [
+          {
+            "node": "Upsert Performer Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Performer Row": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to SaleBot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to SaleBot": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook - SaleBot": [
+      {
+        "json": {
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "method": "worker.gs.add",
+            "client_id": "833573536",
+            "full_name": "Пупкин Василий Васильевич",
+            "phone": "79957804464",
+            "order_id": "833573536-582942145",
+            "client_type": "5",
+            "group_id": "12334",
+            "platform_id": "test_client_online",
+            "avito_order_id": "7738113964",
+            "avito_order_price": "30004000",
+            "avito_order_title": "Грузчик ПРОД склад ЕЖЕДНЕВНО оплата",
+            "avito_order_url": "https://avito.ru/1234567",
+            "avito_profile": "https://avito.ru/user/dsu123",
+            "labels": {
+              "1809159": "1: Симпл Внуково",
+              "1389135": "2: 25-44",
+              "1090393": "2: Муж",
+              "1037219": "3: Паспорт",
+              "1082258": "4: Узбек",
+              "1056095": "5: 5-2"
+            },
+            "lists": {
+              "1056102": "Апрелевка",
+              "1815825": "Кокошкино"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 300
+  },
+  "id": "Skbe0QAfP6Ai0Gcw",
+  "versionId": "3ba9e0f8-2d51-486d-9dc1-891d746edfa7"
+}
+

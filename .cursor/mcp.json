@@ -9,6 +9,7 @@
         "--init",
         "-e", "MCP_MODE=stdio",
         "-e", "LOG_LEVEL=error",
+        "-e", "N8N_MCP_TELEMETRY_DISABLED=true",        
         "-e", "DISABLE_CONSOLE_OUTPUT=true",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
       ]

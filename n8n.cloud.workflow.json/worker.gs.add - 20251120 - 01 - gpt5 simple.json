@@ -1,0 +1,271 @@
+{
+  "name": "Бау - Табель: worker.gs.add (поиск свободного места и вставка)",
+  "nodes": [
+    {
+      "id": "Webhook_Salebot",
+      "name": "Webhook Salebot worker.gs.add",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "salebot-worker-gs-add",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson"
+      }
+    },
+    {
+      "id": "Read_Timesheet",
+      "name": "Read Timesheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "documentId": "__REPLACE_WITH_SPREADSHEET_ID__",
+        "sheetName": "нояб_25",
+        "options": {
+          "locationDefine": {
+            "values": {
+              "headerRow": "={{ 2 }}",
+              "firstDataRow": "={{ 3 }}"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": "__REPLACE_WITH_YOUR_CREDENTIAL_NAME__"
+      }
+    },
+    {
+      "id": "Prepare_And_Find",
+      "name": "Prepare & Find Slot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const sheetRows = $input.all().map(item => item.json);\n\n// Входящий JSON из Webhook (Salebot)\nconst payload = $('Webhook Salebot worker.gs.add').first().json;\n\n// Извлекаем данные исполнителя с подстраховкой значений по умолчанию\nconst fullName = (payload.full_name || 'Пупкин Василий Васильевич').toString().trim();\nconst phone = (payload.phone || '79957804464').toString().trim();\nconst clientId = (payload.client_id || '833573536').toString().trim();\n\n// labels приходят объектом: { id: \"N: Тег\", ... }\nlet labelsStr = '';\nif (payload.labels && typeof payload.labels === 'object') {\n  const values = Object.values(payload.labels).map(v => v.toString().trim()).filter(Boolean);\n  labelsStr = values.join(', ');\n} else if (typeof payload.labels === 'string') {\n  labelsStr = payload.labels.trim();\n} else {\n  labelsStr = '1: Симпл Внуково, 2: 25-44, 2: Муж, 3: Паспорт, 4: Узбек, 5: 5-2';\n}\n\n// Названия колонок в таблице\nconst fioColumn = 'ФИО';\nconst clientColumn = 'client_id / comments';\nconst phoneColumn = 'Телефон / карта';\nconst tagsColumn = 'tags';\n\nlet action = '';\nlet rowNumber = null; // числовой тип внутри кода\nlet message = '';\n\n// Без client_id нет смысла продолжать\nif (!clientId) {\n  action = 'error';\n  message = 'client_id is empty';\n} else {\n  // 1) Проверяем, есть ли такой исполнитель уже в табеле (по client_id / comments)\n  const byClient = new Map();\n  for (const row of sheetRows) {\n    const cid = (row[clientColumn] || '').toString().trim();\n    if (cid) {\n      byClient.set(cid, row);\n    }\n  }\n\n  const existing = byClient.get(clientId);\n\n  if (existing && typeof existing.row_number !== 'undefined') {\n    // Исполнитель уже есть — обновляем первую строку его блока (row_number)\n    action = 'update';\n    rowNumber = Number(existing.row_number);\n    message = 'Исполнитель найден по client_id, обновляем строку ' + rowNumber;\n  } else {\n    // 2) Ищем свободный блок из двух строк\n    // Допущения:\n    // - headerRow = 2, firstDataRow = 3 (как в параметрах Read Timesheet)\n    // - Каждый исполнитель занимает 2 строки подряд\n    const BLOCK_SIZE = 2;\n    const firstDataRow = 3; // первая строка данных в листе\n\n    // Берем только строки с row_number и сортируем по нему\n    const dataRows = sheetRows\n      .filter(r => typeof r.row_number !== 'undefined')\n      .sort((a, b) => Number(a.row_number) - Number(b.row_number));\n\n    let foundStart = null;\n\n    for (const row of dataRows) {\n      const rn = Number(row.row_number);\n      if (!Number.isFinite(rn) || rn < firstDataRow) continue;\n\n      // Верхняя строка блока: смещение от firstDataRow кратно BLOCK_SIZE\n      const indexInBlock = (rn - firstDataRow) % BLOCK_SIZE;\n      if (indexInBlock !== 0) continue;\n\n      const row2 = dataRows.find(r => Number(r.row_number) === rn + 1);\n      if (!row2) continue;\n\n      const fio1 = (row[fioColumn] || '').toString().trim();\n      const fio2 = (row2[fioColumn] || '').toString().trim();\n\n      // Условие свободного места: обе строки блока без ФИО\n      if (!fio1 && !fio2) {\n        foundStart = rn;\n        break;\n      }\n    }\n\n    if (foundStart) {\n      action = 'insert';\n      rowNumber = foundStart;\n      message = 'Свободное место найдено, используем блок c первой строкой ' + rowNumber;\n    } else {\n      action = 'skip';\n      message = 'Свободное место (2 строки подряд без ФИО) не найдено, вставка пропущена';\n    }\n  }\n}\n\nconst result = {\n  action,\n  message,\n  input: {\n    client_id: clientId,\n    full_name: fullName,\n    phone,\n    labels: labelsStr\n  }\n};\n\n// ВАЖНО: rowNumber наружу всегда как строка, чтобы If-нода не ругалась\nif (rowNumber) {\n  result.rowNumber = rowNumber.toString();\n  result[fioColumn] = fullName;\n  result[phoneColumn] = phone;\n  result[clientColumn] = clientId;\n  result[tagsColumn] = labelsStr;\n}\n\nreturn [{ json: result }];"
+      }
+    },
+    {
+      "id": "Has_Row",
+      "name": "Has Row?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.rowNumber }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "skip",
+              "operator": {
+                "type": "string",
+                "operation": "notEqual",
+                "singleValue": true
+              }
+            },
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "error",
+              "operator": {
+                "type": "string",
+                "operation": "notEqual",
+                "singleValue": true
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "Upsert_Row",
+      "name": "Upsert Worker Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1040,
+        -80
+      ],
+      "parameters": {
+        "operation": "update",
+        "documentId": "__REPLACE_WITH_SPREADSHEET_ID__",
+        "sheetName": "нояб_25",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ФИО": "={{ $json['ФИО'] }}",
+            "Телефон / карта": "={{ $json['Телефон / карта'] }}",
+            "client_id / comments": "={{ $json['client_id / comments'] }}",
+            "tags": "={{ $json['tags'] }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "locationDefine": {
+            "values": {
+              "headerRow": "={{ 2 }}",
+              "firstDataRow": "={{ 3 }}",
+              "rowNumber": "={{ $json.rowNumber }}"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": "__REPLACE_WITH_YOUR_CREDENTIAL_NAME__"
+      }
+    },
+    {
+      "id": "Result",
+      "name": "Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "action",
+              "type": "string",
+              "value": "={{ $json.action }}"
+            },
+            {
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "name": "rowNumber",
+              "type": "string",
+              "value": "={{ $json.rowNumber || '' }}"
+            },
+            {
+              "name": "full_name",
+              "type": "string",
+              "value": "={{ $json['ФИО'] || $json.input.full_name }}"
+            },
+            {
+              "name": "phone",
+              "type": "string",
+              "value": "={{ $json['Телефон / карта'] || $json.input.phone }}"
+            },
+            {
+              "name": "client_id",
+              "type": "string",
+              "value": "={{ $json['client_id / comments'] || $json.input.client_id }}"
+            },
+            {
+              "name": "labels",
+              "type": "string",
+              "value": "={{ $json['tags'] || $json.input.labels }}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Salebot worker.gs.add": {
+      "main": [
+        [
+          {
+            "node": "Read Timesheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Timesheet": {
+      "main": [
+        [
+          {
+            "node": "Prepare & Find Slot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare & Find Slot": {
+      "main": [
+        [
+          {
+            "node": "Has Row?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Row?": {
+      "main": [
+        [
+          {
+            "node": "Upsert Worker Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Worker Row": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "active": false
+}
