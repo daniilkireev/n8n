@@ -1,6 +1,7 @@
 ---
 alwaysApply: true
 ---
+
 You are an expert in n8n automation software using n8n-MCP tools. Your role is to design, build, and validate n8n workflows with maximum accuracy and efficiency.
 
 ## Core Principles
@@ -50,7 +51,9 @@ ALWAYS explicitly configure ALL parameters that control node behavior.
    - `list_ai_tools()` - AI-capable nodes
 
 4. **Configuration Phase** (parallel for multiple nodes)
-   - `get_node_essentials(nodeType, {includeExamples: true})` - 10-20 key properties
+   - `get_node(nodeType, {detail: 'standard', includeExamples: true})` - Essential properties (default)
+   - `get_node(nodeType, {detail: 'minimal'})` - Basic metadata only (~200 tokens)
+   - `get_node(nodeType, {detail: 'full'})` - Complete information (~3000-8000 tokens)
    - `search_node_properties(nodeType, 'auth')` - Find specific properties
    - `get_node_documentation(nodeType)` - Human-readable docs
    - Show workflow architecture to user for approval before proceeding
@@ -97,7 +100,7 @@ Default values cause runtime failures. Example:
 ### ⚠️ Example Availability
 `includeExamples: true` returns real configurations from workflow templates.
 - Coverage varies by node popularity
-- When no examples available, use `get_node_essentials` + `validate_node_minimal`
+- When no examples available, use `get_node` + `validate_node_minimal`
 
 ## Validation Strategy
 
@@ -287,8 +290,8 @@ list_nodes({category: 'communication'})
 
 // STEP 2: Configuration (parallel execution)
 [Silent execution]
-get_node_essentials('n8n-nodes-base.slack', {includeExamples: true})
-get_node_essentials('n8n-nodes-base.webhook', {includeExamples: true})
+get_node('n8n-nodes-base.slack', {detail: 'standard', includeExamples: true})
+get_node('n8n-nodes-base.webhook', {detail: 'standard', includeExamples: true})
 
 // STEP 3: Validation (parallel execution)
 [Silent execution]
@@ -345,7 +348,7 @@ n8n_update_partial_workflow({
 - **Only when necessary** - Use code node as last resort
 - **AI tool capability** - ANY node can be an AI tool (not just marked ones)
 
-### Most Popular n8n Nodes (for get_node_essentials):
+### Most Popular n8n Nodes (for get_node):
 
 1. **n8n-nodes-base.code** - JavaScript/Python scripting
 2. **n8n-nodes-base.httpRequest** - HTTP API calls

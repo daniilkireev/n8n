@@ -1,0 +1,674 @@
+{
+    "id": "cQDIr8xcpJO5Dluj",
+    "name": "worker.gs.add",
+    "active": true,
+    "isArchived": false,
+    "createdAt": "2025-11-16T09:39:59.715Z",
+    "updatedAt": "2025-11-24T00:00:00.000Z",
+    "nodes": [
+      {
+        "id": "fb9add65-09c1-4810-a023-3ae686d1a091",
+        "name": "Webhook Trigger",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -16,
+          704
+        ],
+        "parameters": {
+          "multipleMethods": false,
+          "httpMethod": "POST",
+          "path": "worker/gs/add",
+          "authentication": "headerAuth",
+          "responseMode": "lastNode",
+          "responseData": "firstEntryJson",
+          "options": {}
+        },
+        "webhookId": "7ac1cf39-d155-4dcb-9522-e0ec756c0538",
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "ilYOM2GRapefQZlh",
+            "name": "Header Auth account"
+          }
+        }
+      },
+      {
+        "id": "d250e355-acab-4605-8792-c2e554f84335",
+        "name": "Workflow Configuration",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          208,
+          704
+        ],
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "id": "id-1",
+                "name": "spreadsheetId",
+                "value": "1yYSPC2JVTV5a6Byoz8lO4GsrD-Nk6i8PCF68hn_7f4I",
+                "type": "string"
+              },
+              {
+                "id": "id-2",
+                "name": "referenceSheetName",
+                "value": "Справочники",
+                "type": "string"
+              },
+              {
+                "id": "id-3",
+                "name": "statusColumnName",
+                "value": "Статус",
+                "type": "string"
+              },
+              {
+                "id": "id-4",
+                "name": "workerFioColumnName",
+                "value": "ФИО",
+                "type": "string"
+              },
+              {
+                "id": "id-5",
+                "name": "workerClientColumnName",
+                "value": "client_id / comments",
+                "type": "string"
+              },
+              {
+                "id": "id-6",
+                "name": "workerPhoneColumnName",
+                "value": "Телефон / карта",
+                "type": "string"
+              },
+              {
+                "id": "id-7",
+                "name": "workerTagsColumnName",
+                "value": "tags",
+                "type": "string"
+              },
+              {
+                "id": "id-8",
+                "name": "workerBlockSize",
+                "value": 2,
+                "type": "number"
+              },
+              {
+                "id": "id-9",
+                "name": "workerFirstDataRow",
+                "value": 3,
+                "type": "number"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "include": "all",
+          "options": {}
+        }
+      },
+      {
+        "id": "f95c0d8e-d9c2-4eec-ae7d-84659afe34d2",
+        "name": "Get Projects from Справочники",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          432,
+          704
+        ],
+        "parameters": {
+          "preBuiltAgentsCalloutGoogleSheets": "",
+          "authentication": "serviceAccount",
+          "resource": "sheet",
+          "operation": "read",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "={{ $('Workflow Configuration').first().json.spreadsheetId }}"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "={{ $('Workflow Configuration').first().json.referenceSheetName }}"
+          },
+          "filtersUI": {},
+          "combineFilters": "AND",
+          "options": {}
+        },
+        "credentials": {
+          "googleApi": {
+            "id": "4rPLRzUxumedlI2t",
+            "name": "Google Service Account account"
+          }
+        }
+      },
+      {
+        "id": "b09879ce-641e-4be8-8e26-38bbe267be23",
+        "name": "Extract Project Names and Match Timesheet IDs",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          656,
+          704
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "// Get webhook data from Workflow Configuration node (which passes through webhook data)\nconst webhookData = $('Workflow Configuration').first().json;\n\n// Check if webhook body exists (workflow triggered by webhook, not manual trigger)\nif (!webhookData.body) {\n  // No webhook data - return empty array to stop execution gracefully\n  return [];\n}\n\n// Get reference sheet data from 'Get Projects from Справочники' node\nconst referenceData = $('Get Projects from Справочники').all();\n\n// Create a map of project names to timesheet IDs from reference data\n// Column 'Проекты' maps to 'Табель' column\nconst projectToTimesheetMap = {};\nfor (const item of referenceData) {\n  const projectName = item.json['Проекты'];\n  const timesheetId = item.json['Табель'];\n  if (projectName && timesheetId) {\n    projectToTimesheetMap[projectName] = timesheetId;\n  }\n}\n\n// Extract worker data from body\nconst clientId = webhookData.body.client_id;\nconst fullName = webhookData.body.full_name;\nconst phone = webhookData.body.phone;\nconst labels = webhookData.body.labels || {};\n\n// Выбираем ОДНУ метку: ту, у которой максимальный numeric-ключ среди тех,\n// для кого найден timesheetId в справочнике.\nlet bestChoice = null;\n\nfor (const labelKey of Object.keys(labels)) {\n  const labelValue = labels[labelKey];\n\n  // Extract project name from label (format: '1: ProjectName')\n  const match = labelValue.match(/^\\d+:\\s*(.+)$/);\n  const projectName = match ? match[1].trim() : labelValue.trim();\n\n  // Find matching timesheet ID from reference sheet\n  const timesheetId = projectToTimesheetMap[projectName];\n  if (!timesheetId) {\n    console.log(`Warning: No timesheet ID found for project: ${projectName}`);\n    continue;\n  }\n\n  const numericKey = Number(labelKey);\n  if (!Number.isFinite(numericKey)) {\n    continue;\n  }\n\n  if (!bestChoice || numericKey > bestChoice.numericKey) {\n    bestChoice = {\n      numericKey,\n      projectName,\n      timesheetId,\n    };\n  }\n}\n\n// Если ни одной подходящей метки с timesheetId не найдено — дальше обрабатывать нечего\nif (!bestChoice) {\n  return [];\n}\n\n// Возвращаем ровно ОДИН item\nreturn [\n  {\n    json: {\n      client_id: clientId,\n      full_name: fullName,\n      phone: phone,\n      labels: Object.values(labels),\n      projectName: bestChoice.projectName,\n      timesheetId: bestChoice.timesheetId,\n    },\n  },\n];\n",
+          "notice": ""
+        }
+      },
+      {
+        "id": "5fbf4c2e-ec8a-4846-bd94-29addbfa138a",
+        "name": "Process Each Timesheet",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          704
+        ],
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "language": "javaScript",
+          "jsCode": "// Определяем, какую дату использовать: intent_date или текущую\nfunction parseIntentDate(value) {\n  if (typeof value !== 'string') return null;\n  const trimmed = value.trim();\n  if (!trimmed) return null;\n\n  const parts = trimmed.split('.');\n  if (parts.length < 3) return null;\n\n  const [dd, mm, yyyy] = parts;\n  const day = Number(dd);\n  const monthIndex = Number(mm) - 1;\n  const yearNum = Number(yyyy.length === 2 ? `20${yyyy}` : yyyy);\n\n  if (!Number.isInteger(day) || !Number.isInteger(monthIndex) || !Number.isInteger(yearNum)) {\n    return null;\n  }\n\n  const date = new Date(yearNum, monthIndex, day);\n\n  // Проверяем, что дата корректна (например, нет 32.13.2025)\n  if (\n    date.getFullYear() !== yearNum ||\n    date.getMonth() !== monthIndex ||\n    date.getDate() !== day\n  ) {\n    return null;\n  }\n\n  return date;\n}\n\nconst config = $('Workflow Configuration').first().json;\nconst payload = config.body || {};\n\n// Пытаемся разобрать intent_date, если он есть\nconst parsedIntentDate = parseIntentDate(payload.intent_date);\n\n// Фолбек: если intent_date отсутствует или битый — берём текущую дату\nconst effectiveDate = parsedIntentDate || new Date();\n\n// Формируем имя листа по дате, например: \"нояб_25\"\nconst monthNames = [\n  'янв',\n  'фев',\n  'мар',\n  'апр',\n  'май',\n  'июнь',\n  'июль',\n  'авг',\n  'сен',\n  'окт',\n  'нояб',\n  'дек',\n];\n\nconst monthRoot = monthNames[effectiveDate.getMonth()] || '';\nconst yearShort = String(effectiveDate.getFullYear()).slice(-2);\nconst currentMonthSheet = `${monthRoot}_${yearShort}`;\n\n// Пропускаем данные из предыдущей ноды и добавляем currentMonthSheet\nconst inputData = $input.item.json;\n\nreturn {\n  json: {\n    ...inputData,\n    currentMonthSheet,\n  },\n};\n",
+          "notice": ""
+        }
+      },
+      {
+        "id": "92c45503-0954-40d6-87d2-50b5be5e0413",
+        "name": "Read Timesheet",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          1104,
+          704
+        ],
+        "parameters": {
+          "preBuiltAgentsCalloutGoogleSheets": "",
+          "authentication": "serviceAccount",
+          "resource": "sheet",
+          "operation": "read",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "={{ $json.timesheetId }}"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "={{ $json.currentMonthSheet }}"
+          },
+          "filtersUI": {},
+          "combineFilters": "AND",
+          "options": {
+            "dataLocationOnSheet": {
+              "values": {
+                "rangeDefinition": "specifyRange",
+                "headerRow": 2,
+                "firstDataRow": 3
+              }
+            }
+          }
+        },
+        "credentials": {
+          "googleApi": {
+            "id": "4rPLRzUxumedlI2t",
+            "name": "Google Service Account account"
+          }
+        }
+      },
+      {
+        "id": "8ccbc90e-0894-49c8-af6f-f8c18a3bf1fa",
+        "name": "Prepare & Find Slot",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1328,
+          704
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "// Вспомогательная функция разбора intent_date формата \"DD.MM.YYYY\"\nfunction parseIntentDate(value) {\n  if (typeof value !== 'string') return null;\n  const trimmed = value.trim();\n  if (!trimmed) return null;\n\n  const parts = trimmed.split('.');\n  if (parts.length < 3) return null;\n\n  const [dd, mm, yyyy] = parts;\n  const day = Number(dd);\n  const monthIndex = Number(mm) - 1;\n  const yearNum = Number(yyyy.length === 2 ? `20${yyyy}` : yyyy);\n\n  if (!Number.isInteger(day) || !Number.isInteger(monthIndex) || !Number.isInteger(yearNum)) {\n    return null;\n  }\n\n  const date = new Date(yearNum, monthIndex, day);\n\n  if (\n    date.getFullYear() !== yearNum ||\n    date.getMonth() !== monthIndex ||\n    date.getDate() !== day\n  ) {\n    return null;\n  }\n\n  return date;\n}\n\n// Читаем конфиг и payload\nconst config = $('Workflow Configuration').first().json;\nconst payload = config.body || {};\n\n// Если по какой-то причине body нет — завершаем\nif (!Object.keys(payload).length) {\n  return [\n    {\n      json: {\n        action: 'error',\n        message: 'Webhook body is empty in Workflow Configuration',\n      },\n    },\n  ];\n}\n\n// Входящие строки табеля из предыдущей ноды (Read Timesheet)\nconst sheetRows = $input.all().map((item) => item.json);\n\n// Достаём timesheetId и currentMonthSheet из ноды Process Each Timesheet\nconst upstream = $('Process Each Timesheet').first().json || {};\nconst timesheetId = upstream.timesheetId;\nconst currentMonthSheet = upstream.currentMonthSheet;\n\n// Извлекаем данные исполнителя БЕЗ дефолтов\nconst fullName = (payload.full_name ?? '').toString().trim();\nconst phone = (payload.phone ?? '').toString().trim();\nconst clientId = (payload.client_id ?? '').toString().trim();\n\n// labels приходят объектом: { id: \"N: Тег\", ... }\nlet labelsStr = '';\nif (payload.labels && typeof payload.labels === 'object') {\n  const values = Object.values(payload.labels)\n    .map((v) => v?.toString().trim())\n    .filter(Boolean);\n  labelsStr = values.join(', ');\n} else if (typeof payload.labels === 'string') {\n  labelsStr = payload.labels.trim();\n}\n\n// Названия колонок и параметры блока берём из Workflow Configuration\nconst fioColumn = config.workerFioColumnName;\nconst clientColumn = config.workerClientColumnName;\nconst phoneColumn = config.workerPhoneColumnName;\nconst tagsColumn = config.workerTagsColumnName;\nconst statusColumn = config.statusColumnName || 'Статус';\nconst BLOCK_SIZE = Number(config.workerBlockSize);\nconst firstDataRow = Number(config.workerFirstDataRow);\n\nlet action = '';\nlet rowNumber = null;\nlet message = '';\n\n// Без client_id нет смысла продолжать\nif (!clientId) {\n  action = 'error';\n  message = 'client_id is empty';\n} else {\n  // 1) Проверяем, есть ли такой исполнитель уже в табеле (по client_id / comments)\n  const byClient = new Map();\n  for (const row of sheetRows) {\n    const cid = (row[clientColumn] || '').toString().trim();\n    if (cid) {\n      byClient.set(cid, row);\n    }\n  }\n\n  const existing = byClient.get(clientId);\n\n  if (existing && typeof existing.row_number !== 'undefined') {\n    // Исполнитель уже есть — обновляем первую строку его блока (row_number)\n    action = 'update';\n    rowNumber = Number(existing.row_number);\n    message = 'Исполнитель найден по client_id, обновляем строку ' + rowNumber;\n  } else {\n    // 2) Ищем свободный блок из двух строк\n    const dataRows = sheetRows\n      .filter((r) => typeof r.row_number !== 'undefined')\n      .sort((a, b) => Number(a.row_number) - Number(b.row_number));\n\n    let foundStart = null;\n\n    for (const row of dataRows) {\n      const rn = Number(row.row_number);\n      if (!Number.isFinite(rn) || rn < firstDataRow) continue;\n\n      // Верхняя строка блока: смещение от firstDataRow кратно BLOCK_SIZE\n      const indexInBlock = (rn - firstDataRow) % BLOCK_SIZE;\n      if (indexInBlock !== 0) continue;\n\n      const row2 = dataRows.find((r) => Number(r.row_number) === rn + 1);\n      if (!row2) continue;\n\n      const fio1 = (row[fioColumn] || '').toString().trim();\n      const fio2 = (row2[fioColumn] || '').toString().trim();\n\n      // Условие свободного места: обе строки блока без ФИО\n      if (!fio1 && !fio2) {\n        foundStart = rn;\n        break;\n      }\n    }\n\n    if (foundStart) {\n      action = 'insert';\n      rowNumber = foundStart;\n      message =\n        'Свободное место найдено, используем блок c первой строкой ' + rowNumber;\n    } else {\n      action = 'skip';\n      message =\n        'Свободное место (2 строки подряд без ФИО) не найдено, вставка пропущена';\n    }\n  }\n}\n\n// Готовим базовый результат\nconst result = {\n  action,\n  message,\n  input: {\n    client_id: clientId,\n    full_name: fullName,\n    phone,\n    labels: labelsStr,\n  },\n  timesheetId,\n  currentMonthSheet,\n};\n\n// Если строки нет (error/skip) — возвращаем только action/message\nif (!rowNumber) {\n  return [{ json: result }];\n}\n\n// ВАЖНО: rowNumber наружу как строка для Switch, и как число для Google Sheets (row_number)\nresult.rowNumber = rowNumber.toString();\nresult.row_number = rowNumber;\n\n// Базовые поля исполнителя для апдейта строки табеля\nresult[fioColumn] = fullName;\nresult[phoneColumn] = phone;\nresult[clientColumn] = clientId;\nresult[tagsColumn] = labelsStr;\n\n// ---- Intent / intent_date обработка ----\nconst rawIntent =\n  typeof payload.intent === 'string' ? payload.intent.trim().toLowerCase() : '';\n\nlet statusValue = null;\nlet dateCellValue = null;\n\nif (rawIntent === 'lead') {\n  statusValue = 'лид';\n  dateCellValue = 'Оф*';\n} else if (rawIntent === 'registration') {\n  statusValue = 'оф';\n  dateCellValue = 'Оф';\n} else if (rawIntent === 'work') {\n  statusValue = 'д';\n  dateCellValue = 'Д';\n}\n\n// Статус ставим, только если intent один из ожидаемых\nif (statusValue) {\n  result[statusColumn] = statusValue;\n}\n\n// Если intent_date отсутствует или битый — ОСТАНАВЛИВАЕМСЯ на статусе,\n// столбец с датой не трогаем\nlet dateColumnName = null;\n\nif (statusValue && typeof payload.intent_date === 'string') {\n  const parsed = parseIntentDate(payload.intent_date);\n  if (parsed && currentMonthSheet) {\n    const day = parsed.getDate();\n\n    // monthRoot берём из имени листа, например: \"нояб_25\" -> \"нояб.\"\n    const [monthRootRaw] = currentMonthSheet.split('_');\n    if (monthRootRaw) {\n      const candidateColumn = `${day}-${monthRootRaw}.`;\n\n      // Проверяем, что такой столбец вообще есть в табеле\n      const targetRow =\n        sheetRows.find(\n          (row) => Number(row.row_number) === Number(rowNumber),\n        ) || sheetRows[0] || {};\n\n      if (Object.prototype.hasOwnProperty.call(targetRow, candidateColumn)) {\n        dateColumnName = candidateColumn;\n      } else {\n        console.log(\n          `Warning: Column '${candidateColumn}' not found in sheet for timesheetId ${timesheetId}`,\n        );\n      }\n    }\n  }\n}\n\n// Если удалось найти подходящий столбец под дату — выставляем туда значение\nif (dateColumnName && dateCellValue) {\n  result[dateColumnName] = dateCellValue;\n}\n\nreturn [{ json: result }];\n",
+          "notice": ""
+        }
+      },
+      {
+        "id": "e3f7fed5-148e-4b96-97a9-42c171ca076e",
+        "name": "Switch",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.3,
+        "position": [
+          1552,
+          704
+        ],
+        "parameters": {
+          "mode": "rules",
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.rowNumber }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "string",
+                        "operation": "notEmpty",
+                        "singleValue": true
+                      },
+                      "id": "178f29bb-6297-4c51-8c75-68222b743399"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": false
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "577de4f2-fc7b-4f26-b942-a5ba24187f17",
+                      "leftValue": "={{ $json.rowNumber }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "string",
+                        "operation": "empty",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": false
+              }
+            ]
+          },
+          "looseTypeValidation": false,
+          "options": {}
+        }
+      },
+      {
+        "id": "feecbe92-1ec5-4158-b2c5-559e794ed788",
+        "name": "Upsert Worker Row",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          1776,
+          624
+        ],
+        "parameters": {
+          "preBuiltAgentsCalloutGoogleSheets": "",
+          "authentication": "serviceAccount",
+          "resource": "sheet",
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "={{ $json.timesheetId }}"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "={{ $json.currentMonthSheet }}"
+          },
+          "columns": {
+            "mappingMode": "autoMapInputData",
+            "value": {},
+            "matchingColumns": [
+              "row_number"
+            ],
+            "schema": [
+              {
+                "id": "№",
+                "displayName": "№",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "Статус",
+                "displayName": "Статус",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ФИО",
+                "displayName": "ФИО",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "Телефон / карта",
+                "displayName": "Телефон / карта",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "client_id / comments",
+                "displayName": "client_id / comments",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "Паспорт / ИНН",
+                "displayName": "Паспорт / ИНН",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "tags",
+                "displayName": "tags",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {
+            "cellFormat": "USER_ENTERED",
+            "locationDefine": {
+              "values": {
+                "headerRow": 2,
+                "firstDataRow": 3
+              }
+            },
+            "handlingExtraData": "ignoreIt"
+          }
+        },
+        "credentials": {
+          "googleApi": {
+            "id": "4rPLRzUxumedlI2t",
+            "name": "Google Service Account account"
+          }
+        }
+      },
+      {
+        "id": "42679842-e50b-41b7-a87e-9fd7fe01cc55",
+        "name": "Result",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          2000,
+          704
+        ],
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "name": "action",
+                "type": "string",
+                "value": "={{ $json.action }}",
+                "id": "1d6923c4-e219-4362-a4aa-10e2f3e9e9e3"
+              },
+              {
+                "name": "message",
+                "type": "string",
+                "value": "={{ $json.message }}",
+                "id": "de28a7d3-b934-4c3c-a3c7-71317dae7031"
+              },
+              {
+                "name": "rowNumber",
+                "type": "string",
+                "value": "={{ $json.row_number }}",
+                "id": "25f003e3-5c4a-4de9-8d54-45aceb6f261b"
+              },
+              {
+                "name": "full_name",
+                "type": "string",
+                "value": "={{ $json[\"ФИО\"] }}",
+                "id": "d05b3ea9-f3bc-4a0c-93b5-2f80786b5760"
+              },
+              {
+                "name": "phone",
+                "type": "string",
+                "value": "={{ $json[\"Телефон / карта\"] }}",
+                "id": "24188ea1-01a5-4abb-a4b7-1cc187684da7"
+              },
+              {
+                "name": "client_id",
+                "type": "string",
+                "value": "={{ $json[\"client_id / comments\"] }}",
+                "id": "d29f8199-4840-4576-b69c-0e786c522f66"
+              },
+              {
+                "name": "tags",
+                "type": "string",
+                "value": "={{ $json.tags }}",
+                "id": "0f2f67d5-b719-41a2-8aa2-6386d420568d"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Webhook Trigger": {
+        "main": [
+          [
+            {
+              "node": "Workflow Configuration",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Workflow Configuration": {
+        "main": [
+          [
+            {
+              "node": "Get Projects from Справочники",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Projects from Справочники": {
+        "main": [
+          [
+            {
+              "node": "Extract Project Names and Match Timesheet IDs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Project Names and Match Timesheet IDs": {
+        "main": [
+          [
+            {
+              "node": "Process Each Timesheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process Each Timesheet": {
+        "main": [
+          [
+            {
+              "node": "Read Timesheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Timesheet": {
+        "main": [
+          [
+            {
+              "node": "Prepare & Find Slot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare & Find Slot": {
+        "main": [
+          [
+            {
+              "node": "Switch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch": {
+        "main": [
+          [
+            {
+              "node": "Upsert Worker Row",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Upsert Worker Row": {
+        "main": [
+          [
+            {
+              "node": "Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "callerPolicy": "workflowsFromSameOwner",
+      "executionTimeout": 300,
+      "availableInMCP": false
+    },
+    "staticData": {},
+    "pinData": {
+      "Webhook Trigger": [
+        {
+          "json": {
+            "headers": {
+              "host": "deer251087q1ep.app.n8n.cloud",
+              "user-agent": "python-requests/2.31.0",
+              "content-length": "1150",
+              "accept": "*/*",
+              "accept-encoding": "gzip, br",
+              "cdn-loop": "cloudflare; loops=1; subreqs=1",
+              "cf-connecting-ip": "62.84.125.172",
+              "cf-ew-via": "15",
+              "cf-ipcountry": "RU",
+              "cf-ray": "9a0964559195f12a-DME",
+              "cf-visitor": "{\"scheme\":\"https\"}",
+              "cf-worker": "n8n.cloud",
+              "content-type": "application/json",
+              "x-api-key": "N8N_X_API_TOKEN_22DEE204206BEDE8",
+              "x-forwarded-for": "62.84.125.172, 172.71.184.128",
+              "x-forwarded-host": "deer251087q1ep.app.n8n.cloud",
+              "x-forwarded-port": "443",
+              "x-forwarded-proto": "https",
+              "x-forwarded-server": "traefik-prod-users-gwc-98-5f74ff6676-dqps5",
+              "x-is-trusted": "yes",
+              "x-real-ip": "62.84.125.172"
+            },
+            "params": {},
+            "query": {},
+            "body": {
+              "dt": "worker_gs_add_post_dt",
+              "method": "worker.gs.add",
+              "intent": "registration",
+              "intent_date": "23.11.2025",
+              "client_id": "833573536",
+              "full_name": "PROC - Добавить исполнителя",
+              "phone": "79957804464",
+              "order_id": "833573536-582942145",
+              "client_type": "5",
+              "group_id": "12334",
+              "platform_id": "test_client_online",
+              "avito_order_id": "7738113964",
+              "avito_order_price": "30004000",
+              "avito_order_title": "Грузчик ПРОД склад ЕЖЕДНЕВНО оплата",
+              "avito_order_url": "https://avito.ru/123456790",
+              "avito_profile": "",
+              "labels": {
+                "1037219": "3: Паспорт",
+                "1056095": "5: 5-2",
+                "1082258": "4: Узбек",
+                "1090393": "2: Муж",
+                "1389135": "2: 25-44",
+                "1809147": "1: Холодильник",
+                "1809159": "1: Симпл Внуково"
+              },
+              "lists": {
+                "1056102": "Апрелевка",
+                "1815825": "Кокошкино"
+              }
+            },
+            "webhookUrl": "https://deer251087q1ep.app.n8n.cloud/webhook-test/salebot-worker",
+            "executionMode": "test"
+          }
+        }
+      ]
+    }
+  }
