@@ -1,0 +1,437 @@
+{
+  "name": "router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "router",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -64,
+        192
+      ],
+      "id": "89ffec71-2f72-43e2-a204-b704bb13129f",
+      "name": "Webhook Entry Point",
+      "webhookId": "ce1bb61b-0ed7-4ad0-b3f8-61da52b204ce",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ilYOM2GRapefQZlh",
+          "name": "router - Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.method }}",
+                    "rightValue": "vacancy.message_text.get",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c38e2d9c-943b-4442-99c4-339435ff721d"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e85d5168-9f48-4653-a24a-2840db6ab2d1",
+                    "leftValue": "={{ $json.body.method }}",
+                    "rightValue": "worker.gs.add",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        608,
+        96
+      ],
+      "id": "103b00fa-e30b-488a-8fa3-818d6a1b28fb",
+      "name": "Router Method Switch"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1056,
+        96
+      ],
+      "id": "00a2313b-1891-4b4d-a64b-cd2a663d3c41",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.autsorsim.ru/webhook/vacancy/message_text/get",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Webhook Entry Point').item.json.body }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        832,
+        0
+      ],
+      "id": "da763241-5375-40b1-bd58-c47d74245077",
+      "name": "vacancy/message_text/get",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ilYOM2GRapefQZlh",
+          "name": "router - Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.subWorkflowUrl }}worker/gs/add",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        832,
+        192
+      ],
+      "id": "dca26bfb-f440-430c-82fe-1081faadec16",
+      "name": "worker/gs/add",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ilYOM2GRapefQZlh",
+          "name": "router - Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "method",
+              "value": "={{ $json.body.method }}"
+            },
+            {
+              "key": "executionMode",
+              "value": "={{ $json.executionMode }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        384,
+        96
+      ],
+      "id": "a2692c95-2e78-498b-962e-27b42fa7103b",
+      "name": "Execution Data"
+    },
+    {
+      "parameters": {
+        "content": "Тут нужно сделать универсальный конструктор ответа API (input_data, result_data) - а не в каждом делать свое.",
+        "height": 128
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        944,
+        -16
+      ],
+      "typeVersion": 1,
+      "id": "a600c5f2-3714-443b-9264-79d5dd29854f",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "ab4031be-7192-480e-8ab3-729518187087",
+      "name": "worker.gs.add Manual Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-4",
+              "name": "subWorkflowUrl",
+              "value": "={{ \n  'https://n8n.autsorsim.ru/webhook' + \n  ($execution.mode === 'test' ? '/dev/' : '/')\n}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "fa7f52cb-2833-410b-9890-e2f63ec933e6",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        160,
+        96
+      ]
+    }
+  ],
+  "pinData": {
+    "Webhook Entry Point": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.autsorsim.ru",
+            "x-real-ip": "158.160.37.232",
+            "x-forwarded-for": "158.160.37.232",
+            "x-forwarded-proto": "https",
+            "connection": "close",
+            "content-length": "725",
+            "user-agent": "python-requests/2.31.0",
+            "accept-encoding": "gzip, deflate",
+            "accept": "*/*",
+            "x-api-key": "N8N_X_API_TOKEN_22DEE204206BEDE8",
+            "content-type": "application/x-www-form-urlencoded"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "method": "vacancy.message_text.get",
+            "client_id": "834794696",
+            "full_name": "Rizomat",
+            "phone": "79057095172",
+            "order_id": "834794696-584158284",
+            "messenger": "",
+            "platform_id": "u2i-SZ_Kezz50UnJfs9P1k7foA",
+            "avito_order_id": "7738124984",
+            "avito_order_price": "4400",
+            "avito_order_title": "Комплектовщик на Склад электроники оплата ежедневн",
+            "avito_order_url": "avito.ru/7738124984",
+            "avito_profile": "https://avito.ru/user/840961b9301783f79e39644bc5db09b0/profile?iid=7738124984&page_from=from_item_messenger&src=messenger&id=7738124984"
+          },
+          "webhookUrl": "https://n8n.autsorsim.ru/webhook/router",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "worker.gs.add Manual Trigger": [
+      {
+        "json": {
+          "headers": {
+            "host": "deer251087q1ep.app.n8n.cloud",
+            "user-agent": "python-requests/2.31.0",
+            "content-length": "1150",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "62.84.125.172",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "RU",
+            "cf-ray": "9a0964559195f12a-DME",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-api-key": "N8N_X_API_TOKEN_22DEE204206BEDE8",
+            "x-forwarded-for": "62.84.125.172, 172.71.184.128",
+            "x-forwarded-host": "deer251087q1ep.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-98-5f74ff6676-dqps5",
+            "x-is-trusted": "yes",
+            "x-real-ip": "62.84.125.172"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "dt": "worker_gs_add_post_dt",
+            "method": "worker.gs.add",
+            "client_id": "833573536",
+            "full_name": "PROC - Добавить исполнителя",
+            "phone": "79957804464",
+            "order_id": "833573536-582942145",
+            "client_type": "5",
+            "group_id": "12334",
+            "platform_id": "test_client_online",
+            "avito_order_id": "7738113964",
+            "avito_order_price": "30004000",
+            "avito_order_title": "Грузчик ПРОД склад ЕЖЕДНЕВНО оплата",
+            "avito_order_url": "https://avito.ru/123456790",
+            "avito_profile": "",
+            "labels": {
+              "1037219": "3: Паспорт",
+              "1056095": "5: 5-2",
+              "1082258": "4: Узбек",
+              "1090393": "2: Муж",
+              "1389135": "2: 25-44",
+              "1809147": "1: Холодильник",
+              "1809159": "1: Симпл Внуково"
+            },
+            "lists": {
+              "1056102": "Апрелевка",
+              "1815825": "Кокошкино"
+            }
+          },
+          "webhookUrl": "https://deer251087q1ep.app.n8n.cloud/webhook-test/salebot-worker",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook Entry Point": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router Method Switch": {
+      "main": [
+        [
+          {
+            "node": "vacancy/message_text/get",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "worker/gs/add",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "vacancy/message_text/get": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "worker/gs/add": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execution Data": {
+      "main": [
+        [
+          {
+            "node": "Router Method Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "worker.gs.add Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Execution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Moscow",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 300,
+    "availableInMCP": false
+  },
+  "versionId": "14d1cbe6-8ff1-49df-b6e3-2cb2589f73be",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe533e7b5b478c006fd0604461e26e5c3e4d170140f009e17eadbd88e693907b"
+  },
+  "id": "BHfD7wO4ccugwQFS",
+  "tags": []
+}

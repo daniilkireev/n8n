@@ -1,0 +1,179 @@
+{
+  "name": "payment.single.alfa",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "payment/single/alfa",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "id": "webhook-alfa-1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        200
+      ],
+      "webhookId": "payment-single-alfa",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wOq3eTnp8VPVbKnq",
+          "name": "router - Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-alfa-1",
+              "name": "paybotUrl",
+              "value": "http://192.168.1.188:8787/api/alfa/pay",
+              "type": "string"
+            },
+            {
+              "id": "cfg-alfa-2",
+              "name": "sourceAccount",
+              "value": "Наши авансы",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config-alfa-1",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -176,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.paybotUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source_account\": \"{{ $('Config').first().json.sourceAccount }}\",\n  \"phone\": \"{{ $('Webhook').first().json.body.phone.replace(/[^0-9]/g, '') }}\",\n  \"bank\": \"{{ $('Webhook').first().json.body.bank }}\",\n  \"recipient_name\": \"{{ $('Webhook').first().json.body.recipient_name }}\",\n  \"amount\": \"{{ $('Webhook').first().json.body.amount }}\"\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "http-paybot-alfa-1",
+      "name": "HTTP Paybot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        48,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ar2srzN5zLPRoiVu",
+          "name": "paybot - Header Auth account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== PROCESS PAYBOT RESULT =====\n// Обрабатываем результат запроса к paybot и формируем унифицированный ответ\n\nconst inputItem = $input.first();\nconst httpResponse = inputItem.json || {};\nconst webhookData = $('Webhook').first().json.body;\n\n// Проверяем, была ли ошибка HTTP запроса\nconst isHttpError = inputItem.error !== undefined;\n\nlet ok;\nlet message;\n\nif (isHttpError) {\n  // HTTP ошибка или таймаут\n  ok = false;\n  message = `HTTP ошибка: ${inputItem.error?.message || 'Unknown error'}`;\n} else if (httpResponse.ok === true) {\n  // Успешный платёж\n  ok = true;\n  message = httpResponse.message || 'Платёж выполнен успешно';\n} else {\n  // Paybot вернул ошибку (ok: false)\n  ok = false;\n  message = httpResponse.message || httpResponse.error_code || 'Ошибка paybot';\n}\n\nreturn [{\n  json: {\n    ok: ok,\n    message: message,\n    paybotResponse: httpResponse,\n    // Возвращаем данные запроса для диагностики\n    requestData: {\n      phone: webhookData.phone,\n      bank: webhookData.bank,\n      recipient_name: webhookData.recipient_name,\n      amount: webhookData.amount\n    }\n  }\n}];\n"
+      },
+      "id": "process-result-alfa-1",
+      "name": "Process Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-webhook-alfa-1",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        200
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "HTTP Paybot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Paybot": {
+      "main": [
+        [
+          {
+            "node": "Process Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Result": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "payment-single-alfa-v1",
+  "meta": {
+    "instanceId": "fe533e7b5b478c006fd0604461e26e5c3e4d170140f009e17eadbd88e693907b"
+  },
+  "id": "payment-single-alfa",
+  "tags": []
+}
+
