@@ -1,0 +1,149 @@
+{
+  "updatedAt": "2025-11-28T15:38:30.043Z",
+  "createdAt": "2025-11-22T10:20:15.690Z",
+  "id": "NNsZ5S2mvgTk87jS",
+  "name": "health",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "health",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9da1169a-46f8-42d6-b7df-1b4f15d0f386",
+      "name": "Webhook",
+      "webhookId": "b383d492-e37d-4974-9b84-2a17acdb4757",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ilYOM2GRapefQZlh",
+          "name": "router - Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Берём первый (и единственный) входящий item\nconst item = items[0] || { json: {} };\nconst body = item.json || {};\n\n// Здесь можешь делать любую логику проверки.\n// Для примера — пусть мы просто проверим наличие поля \"check\".\nlet healthStatus = 'healthy';\nlet details = 'ok';\n\nif (!body.check) {\n  // Это чисто для демонстрации, на реальном мониторинге\n  // лучше всегда возвращать \"healthy\", а ошибки отдавать статусом 4xx/5xx.\n  healthStatus = 'healthy'; // всё равно healthy, чтобы монитор не падал из-за формата\n  details = 'missing-check-field';\n}\n\n// Собираем ответ, который уйдёт наружу\nreturn [\n  {\n    json: {\n      status: healthStatus,      // <--- ВАЖНО: содержит \"healthy\"\n      details,\n      received: body,            // echo входного payload для отладки\n      n8nTimestamp: new Date().toISOString(),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "9ea13efb-95bb-4152-84ba-903451f6b75e",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "probe": "external-monitor",
+          "check": "n8n-core",
+          "version": 1
+        }
+      }
+    ]
+  },
+  "versionId": "e0dcccce-8015-4c33-9c84-3f6d65a67f89",
+  "versionCounter": 16,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-11-22T10:20:15.690Z",
+      "createdAt": "2025-11-22T10:20:15.690Z",
+      "role": "workflow:owner",
+      "workflowId": "NNsZ5S2mvgTk87jS",
+      "projectId": "9ecBn8i2373x5y5J",
+      "project": {
+        "updatedAt": "2025-10-26T17:58:34.883Z",
+        "createdAt": "2025-10-26T12:40:35.007Z",
+        "id": "9ecBn8i2373x5y5J",
+        "name": "Daniil Kireev <daniilkireev@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-10-26T12:40:35.007Z",
+            "createdAt": "2025-10-26T12:40:35.007Z",
+            "userId": "9785043e-ebc4-4f17-a2cc-612dffe1c847",
+            "projectId": "9ecBn8i2373x5y5J",
+            "user": {
+              "updatedAt": "2025-11-28T08:48:10.303Z",
+              "createdAt": "2025-10-26T12:40:32.996Z",
+              "id": "9785043e-ebc4-4f17-a2cc-612dffe1c847",
+              "email": "daniilkireev@gmail.com",
+              "firstName": "Daniil",
+              "lastName": "Kireev",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-10-26T17:58:43.622Z",
+                "personalization_survey_n8n_version": "1.116.2",
+                "companyType": "personal",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "BHfD7wO4ccugwQFS",
+                "userActivatedAt": 1761570680562,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1762944776385
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2025-11-28",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2025-11-24T18:19:05.614Z",
+      "createdAt": "2025-11-24T18:19:05.614Z",
+      "id": "skUz9UpDoIUtVLc8",
+      "name": "prod"
+    }
+  ]
+}

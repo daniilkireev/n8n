@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2025-11-28T15:38:39.728Z",
+  "createdAt": "2025-10-26T19:58:51.367Z",
+  "id": "BHfD7wO4ccugwQFS",
   "name": "router",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -232,6 +238,110 @@
       ]
     }
   ],
+  "connections": {
+    "Webhook Entry Point": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router Method Switch": {
+      "main": [
+        [
+          {
+            "node": "vacancy/message_text/get",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "worker/gs/add",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "vacancy/message_text/get": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "worker/gs/add": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execution Data": {
+      "main": [
+        [
+          {
+            "node": "Router Method Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "worker.gs.add Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Execution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Moscow",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 300,
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Google Sheets Trigger": {
+      "documentId": "12ELsRyUDwXJcuzkYPu8sFCU2aoVv9VuF1y1xPxxA2i4",
+      "sheetId": 1337738460,
+      "lastRevision": 70,
+      "lastRevisionLink": "https://docs.google.com/spreadsheets/export?id=12ELsRyUDwXJcuzkYPu8sFCU2aoVv9VuF1y1xPxxA2i4&revision=70&exportFormat=xlsx"
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
   "pinData": {
     "Webhook Entry Point": [
       {
@@ -333,105 +443,69 @@
       }
     ]
   },
-  "connections": {
-    "Webhook Entry Point": {
-      "main": [
-        [
+  "versionId": "661abc79-87e1-4d0e-9e31-57bd29dc600d",
+  "versionCounter": 70,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-10-26T19:58:51.367Z",
+      "createdAt": "2025-10-26T19:58:51.367Z",
+      "role": "workflow:owner",
+      "workflowId": "BHfD7wO4ccugwQFS",
+      "projectId": "9ecBn8i2373x5y5J",
+      "project": {
+        "updatedAt": "2025-10-26T17:58:34.883Z",
+        "createdAt": "2025-10-26T12:40:35.007Z",
+        "id": "9ecBn8i2373x5y5J",
+        "name": "Daniil Kireev <daniilkireev@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
           {
-            "node": "Config",
-            "type": "main",
-            "index": 0
+            "updatedAt": "2025-10-26T12:40:35.007Z",
+            "createdAt": "2025-10-26T12:40:35.007Z",
+            "userId": "9785043e-ebc4-4f17-a2cc-612dffe1c847",
+            "projectId": "9ecBn8i2373x5y5J",
+            "user": {
+              "updatedAt": "2025-11-28T08:48:10.303Z",
+              "createdAt": "2025-10-26T12:40:32.996Z",
+              "id": "9785043e-ebc4-4f17-a2cc-612dffe1c847",
+              "email": "daniilkireev@gmail.com",
+              "firstName": "Daniil",
+              "lastName": "Kireev",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-10-26T17:58:43.622Z",
+                "personalization_survey_n8n_version": "1.116.2",
+                "companyType": "personal",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "BHfD7wO4ccugwQFS",
+                "userActivatedAt": 1761570680562,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1762944776385
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2025-11-28",
+              "isPending": false
+            }
           }
         ]
-      ]
-    },
-    "Router Method Switch": {
-      "main": [
-        [
-          {
-            "node": "vacancy/message_text/get",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "worker/gs/add",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "vacancy/message_text/get": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "worker/gs/add": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execution Data": {
-      "main": [
-        [
-          {
-            "node": "Router Method Switch",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "worker.gs.add Manual Trigger": {
-      "main": [
-        [
-          {
-            "node": "Config",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Config": {
-      "main": [
-        [
-          {
-            "node": "Execution Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      }
     }
-  },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1",
-    "timezone": "Europe/Moscow",
-    "callerPolicy": "workflowsFromSameOwner",
-    "executionTimeout": 300,
-    "availableInMCP": false
-  },
-  "versionId": "14d1cbe6-8ff1-49df-b6e3-2cb2589f73be",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "fe533e7b5b478c006fd0604461e26e5c3e4d170140f009e17eadbd88e693907b"
-  },
-  "id": "BHfD7wO4ccugwQFS",
-  "tags": []
+  ],
+  "tags": [
+    {
+      "updatedAt": "2025-11-24T18:19:05.614Z",
+      "createdAt": "2025-11-24T18:19:05.614Z",
+      "id": "skUz9UpDoIUtVLc8",
+      "name": "prod"
+    }
+  ]
 }
